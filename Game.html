@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Plinko</title>
+<style>
+  :root{
+    --bg-deep:#0a0c18;
+    --bg-panel:#12162a;
+    --bg-input:#1a1f3a;
+    --border:#2a2f55;
+    --border-soft:#232849;
+    --bg-radial-inner:#171b34;
+    --canvas-bg-inner:#151933;
+    --canvas-bg-outer:#0a0c18;
+    --peg:#4a4f7a;
+    --ball:#00e5ff;
+    --gold:#ffd166;
+    --text:#e8e9f5;
+    --text-dim:#8b8fb0;
+    --green:#33e5a4;
+    --red:#ff5c7a;
+    --purple:#7b5cff;
+  }
+  :root[data-theme="light"]{
+    --bg-deep:#e7e9f7;
+    --bg-panel:#ffffff;
+    --bg-input:#eef0fb;
+    --border:#c7cbe8;
+    --border-soft:#dadeef;
+    --bg-radial-inner:#ffffff;
+    --canvas-bg-inner:#f4f5fc;
+    --canvas-bg-outer:#e2e5f6;
+    --peg:#a9aed8;
+    --ball:#0090a8;
+    --gold:#c98a12;
+    --text:#1c1f33;
+    --text-dim:#5b5f80;
+    --green:#149d6f;
+    --red:#d43a5c;
+    --purple:#5c3fd6;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    height:100%;
+    background:radial-gradient(circle at 50% 0%, var(--bg-radial-inner) 0%, var(--bg-deep) 60%);
+    color:var(--text);
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow-y:auto;
+  }
+  .app{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    min-height:100%;
+    padding:14px 10px 24px;
+    position:relative;
+  }
+  h1{
+    margin:0 0 2px;
+    font-size:22px;
+    letter-spacing:6px;
+    font-weight:800;
+    background:linear-gradient(90deg,var(--ball),var(--gold));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    text-transform:uppercase;
+  }
+  .sub{
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:2px;
+    margin-bottom:10px;
+    text-transform:uppercase;
+  }
+  .stage{
+    position:relative;
+    background:linear-gradient(180deg,var(--bg-panel),#0d1022);
+    border-radius:18px;
+    padding:10px;
+    box-shadow:0 0 0 1px var(--border-soft), 0 20px 60px -20px #000;
+  }
+  canvas{
+    display:block;
+    border-radius:12px;
+    background:radial-gradient(circle at 50% 20%, var(--canvas-bg-inner) 0%, var(--canvas-bg-outer) 75%);
+  }
+  canvas.boost{ box-shadow: 0 0 0 3px var(--green) inset; }
+  .bucket-strip{ display:flex; margin-top:4px; }
+  .bucket-cell{ flex:1; display:flex; justify-content:center; padding:2px 1px; min-width:0; }
+  .bucket-cell .mult{ font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .toast{
+    position:absolute; left:50%; top:8px; transform:translateX(-50%);
+    padding:6px 16px; border-radius:20px; font-weight:700; font-size:13px;
+    pointer-events:none; opacity:0; transition:opacity .2s, top .2s; z-index:5; white-space:nowrap;
+  }
+  .badge-row{ position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:4px; align-items:flex-end; z-index:4; }
+  .pity-badge, .boost-badge{ font-size:9px; font-weight:700; letter-spacing:0.5px; padding:4px 8px; border-radius:8px; }
+  .pity-badge{ background:rgba(255,209,102,0.12); border:1px solid rgba(255,209,102,0.4); color:var(--gold); }
+  .boost-badge{ background:rgba(51,229,164,0.15); border:1px solid rgba(51,229,164,0.5); color:var(--green); }
+
+  .panel{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:14px; max-width:640px; }
+  .group{
+    background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:10px; padding:8px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:5px; min-width:100px;
+  }
+  .group .label{ font-size:9px; letter-spacing:1.5px; color:var(--text-dim); text-transform:uppercase; }
+  .group .value{ font-size:16px; font-weight:700; color:var(--gold); font-variant-numeric:tabular-nums; }
+  .group .value.small{ font-size:13px; }
+
+  .bet-box{
+    display:flex; align-items:center; background:var(--bg-input); border:1px solid var(--border);
+    border-radius:8px; overflow:hidden;
+  }
+  .bet-box button{ background:none; border:none; color:var(--text-dim); width:26px; height:32px; font-size:15px; cursor:pointer; }
+  .bet-box button:hover{color:var(--ball);}
+  .bet-box input{
+    width:60px; background:none; border:none; color:var(--text); font-size:14px;
+    text-align:center; font-weight:600; font-variant-numeric:tabular-nums;
+  }
+  .bet-box input:focus{outline:none;}
+  .bet-frac-row{ display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; justify-content:center; }
+  .bet-frac-row button{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text-dim);
+    padding:5px 8px; border-radius:6px; font-size:10px; font-weight:700; cursor:pointer;
+  }
+  .bet-frac-row button:hover{ color:var(--gold); border-color:var(--gold); }
+  .bet-frac-row .allin-btn{ background:linear-gradient(135deg,var(--red),#a0223a); color:#fff; border:none; }
+  .bet-frac-row .mult-btn{ color:var(--ball); border-color:#0090a8; }
+
+  .diff-picker{ display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+  .diff-picker button{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text-dim);
+    padding:5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;
+  }
+  .diff-picker button.active{ background:var(--gold); color:#241a03; border-color:transparent; }
+
+  .drop-btn{
+    background:linear-gradient(135deg,var(--ball),#0090a8); color:#04121a; border:none;
+    font-weight:800; letter-spacing:1px; padding:12px 26px; border-radius:10px; font-size:14px;
+    cursor:pointer; text-transform:uppercase; box-shadow:0 6px 18px -6px #00e5ff88;
+    transition:transform .08s ease, box-shadow .08s ease;
+  }
+  .drop-btn:hover{transform:translateY(-1px);}
+  .drop-btn:active{transform:translateY(1px);}
+  .drop-btn:disabled{ opacity:.4; cursor:not-allowed; box-shadow:none; }
+
+  .open-btn-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
+  .open-btn{
+    background:linear-gradient(135deg,#7b5cff,#4a2fd0); color:#fff; border:none;
+    font-weight:800; letter-spacing:1px; padding:10px 18px; border-radius:10px; font-size:12px;
+    cursor:pointer; text-transform:uppercase;
+  }
+  .open-btn.exchange{ background:linear-gradient(135deg,var(--green),#0d9e6f); color:#04231a; }
+  .open-btn.skins{ background:linear-gradient(135deg,var(--gold),#e0a020); color:#241a03; }
+
+  footer{ color:var(--text-dim); font-size:10px; margin-top:14px; letter-spacing:1px; text-align:center; max-width:520px; }
+
+  .danger-link{ color:#4a4f6a; font-size:9px; letter-spacing:1px; cursor:pointer; text-decoration:underline; }
+
+  /* ---------- Settings button (top right) ---------- */
+  .settings-btn{
+    position:fixed; top:14px; right:16px; z-index:40;
+    background:var(--bg-panel); border:1px solid var(--border); color:var(--text);
+    width:38px; height:38px; border-radius:50%; font-size:17px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px -6px #000;
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .settings-btn:hover{ border-color:var(--gold); color:var(--gold); transform:rotate(35deg); }
+
+  /* ---------- Volume sliders ---------- */
+  .volume-row{ width:100%; display:flex; flex-direction:column; gap:6px; }
+  .volume-row-top{
+    display:flex; justify-content:space-between; width:100%;
+    font-size:11px; color:var(--text-dim); letter-spacing:0.5px;
+  }
+  .volume-row-top span:last-child{ color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; }
+  .vol-slider{
+    -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:4px;
+    background:var(--bg-input); border:1px solid var(--border); outline:none; cursor:pointer;
+  }
+  .vol-slider::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%;
+    background:var(--gold); border:2px solid #241a03; cursor:pointer; margin-top:-1px;
+  }
+  .vol-slider::-moz-range-thumb{
+    width:16px; height:16px; border-radius:50%; background:var(--gold); border:2px solid #241a03; cursor:pointer;
+  }
+  .vol-slider.vol-music::-webkit-slider-thumb{ background:var(--purple); border-color:#1d1140; }
+  .vol-slider.vol-music::-moz-range-thumb{ background:var(--purple); border-color:#1d1140; }
+  .vol-slider.vol-sfx::-webkit-slider-thumb{ background:var(--green); border-color:#04231a; }
+  .vol-slider.vol-sfx::-moz-range-thumb{ background:var(--green); border-color:#04231a; }
+
+  /* ---------- Credits ---------- */
+  .credits-line{ font-size:11px; color:var(--text-dim); line-height:1.9; text-align:center; }
+  .credits-name{ font-weight:800; letter-spacing:0.5px; }
+
+  .hidden{ display:none !important; }
+
+  /* ---------- Title screen ---------- */
+  .title-screen{
+    position:fixed; inset:0; background:radial-gradient(circle at 50% 30%, var(--bg-radial-inner) 0%, var(--bg-deep) 70%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:50; gap:18px; padding:20px; text-align:center;
+  }
+  .title-screen h1{ font-size:44px; letter-spacing:10px; margin:0; }
+  .title-screen .tag{ color:var(--text-dim); font-size:12px; letter-spacing:2px; text-transform:uppercase; margin-top:-14px; }
+  .title-diff-label{ font-size:11px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; }
+  .title-diff-desc{ font-size:11px; color:var(--text-dim); max-width:280px; }
+  .play-btn{
+    background:linear-gradient(135deg,var(--gold),#e0a020); color:#241a03; border:none;
+    font-weight:800; letter-spacing:2px; padding:14px 46px; border-radius:12px; font-size:15px;
+    cursor:pointer; text-transform:uppercase; box-shadow:0 8px 22px -8px #ffd16699;
+  }
+  .username-input{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text); font-size:15px;
+    padding:10px 14px; border-radius:10px; text-align:center; width:220px;
+  }
+  .username-input:focus{ outline:none; border-color:var(--ball); }
+  .auth-btns{ display:flex; gap:10px; }
+  .auth-btns button{ border:none; font-weight:700; letter-spacing:1px; padding:10px 20px; border-radius:10px; font-size:12px; cursor:pointer; text-transform:uppercase; }
+  #signInBtn{ background:var(--bg-input); color:var(--text); border:1px solid var(--border); }
+  #registerBtn{ background:linear-gradient(135deg,var(--ball),#0090a8); color:#04121a; }
+  .auth-status{ font-size:11px; min-height:14px; color:var(--red); }
+  .welcome-line{ color:var(--text-dim); font-size:12px; }
+  .account-link{ color:var(--text-dim); font-size:10px; margin-top:6px; cursor:pointer; text-decoration:underline; }
+
+  /* ---------- Overlay pages (upgrades / reset / exchange / skins) ---------- */
+  .overlay-page{
+    position:fixed; inset:0; background:radial-gradient(circle at 50% 20%, var(--bg-radial-inner) 0%, var(--bg-deep) 70%);
+    display:flex; flex-direction:column; align-items:center;
+    z-index:60; padding:40px 20px 20px; overflow-y:auto;
+  }
+  .overlay-close{
+    position:fixed; top:14px; right:16px;
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    z-index:61;
+  }
+  .overlay-close:hover{ border-color:var(--red); color:var(--red); }
+  .overlay-exit-btn{
+    margin-top:8px; margin-bottom:16px;
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    padding:8px 20px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .overlay-exit-btn:hover{ border-color:var(--red); color:var(--red); }
+  .overlay-title{
+    font-size:20px; letter-spacing:4px; text-transform:uppercase; font-weight:800;
+    background:linear-gradient(90deg,var(--gold),#7b5cff);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    margin-bottom:14px;
+  }
+  .upgrade-block{
+    background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:14px;
+    padding:18px 22px; width:100%; max-width:340px; margin-bottom:22px;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  .upgrade-block .u-label{ font-size:13px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--text); }
+  .upgrade-block .u-sub{ font-size:11px; color:var(--text-dim); text-align:center; }
+  .progress-track{ width:100%; height:10px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .progress-fill{ height:100%; background:linear-gradient(90deg,var(--gold),#e0a020); }
+  .upgrade-block.speed .progress-fill{ background:linear-gradient(90deg,var(--purple),#4a2fd0); }
+  .upgrade-buy-btn{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    font-size:11px; font-weight:700; padding:8px 14px; border-radius:8px; cursor:pointer;
+  }
+  .upgrade-buy-btn:hover{ border-color:var(--gold); color:var(--gold); }
+  .upgrade-buy-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* ---------- Reset page ---------- */
+  .reset-block{
+    background:rgba(255,92,122,0.06); border:1px solid rgba(255,92,122,0.3); border-radius:14px;
+    padding:20px 24px; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:12px;
+  }
+  .reset-block input{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    font-size:13px; padding:9px 12px; border-radius:8px; text-align:center; width:200px;
+  }
+  .reset-block input:focus{ outline:none; border-color:var(--red); }
+  .reset-confirm-btn{
+    background:var(--red); color:#1a0508; border:none; font-weight:800; letter-spacing:1px;
+    padding:9px 18px; border-radius:8px; font-size:12px; cursor:pointer; text-transform:uppercase;
+  }
+  .reset-confirm-btn:disabled{ opacity:.35; cursor:not-allowed; }
+  .reset-cancel-btn{
+    background:none; border:1px solid var(--border); color:var(--text-dim); font-size:11px;
+    padding:8px 16px; border-radius:8px; cursor:pointer; margin-top:6px;
+  }
+  .reset-hint{ font-size:10px; color:var(--text-dim); text-align:center; }
+
+  /* ---------- Exchange page ---------- */
+  .exchange-block{
+    background:rgba(51,229,164,0.06); border:1px solid rgba(51,229,164,0.3); border-radius:14px;
+    padding:20px 24px; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:12px;
+  }
+  .exchange-block input{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    font-size:14px; padding:9px 12px; border-radius:8px; text-align:center; width:200px;
+  }
+  .exchange-block input:focus{ outline:none; border-color:var(--green); }
+  .exchange-preview{ font-size:12px; color:var(--text-dim); }
+  .exchange-preview b{ color:var(--green); }
+  .exchange-btn{
+    background:var(--green); color:#04231a; border:none; font-weight:800; letter-spacing:1px;
+    padding:9px 18px; border-radius:8px; font-size:12px; cursor:pointer; text-transform:uppercase;
+  }
+  .exchange-btn:disabled{ opacity:.35; cursor:not-allowed; }
+  .exchange-quick-row{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+  .exchange-quick-row button{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text-dim);
+    padding:6px 10px; border-radius:6px; font-size:10px; font-weight:700; cursor:pointer;
+  }
+
+  /* ---------- Skins page ---------- */
+  .skin-list{ width:100%; max-width:420px; display:flex; flex-direction:column; gap:8px; padding-bottom:20px; }
+  .skin-item{
+    background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:10px;
+    padding:10px 14px; display:flex; align-items:center; gap:12px;
+  }
+  .skin-item.equipped{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold) inset; }
+  .skin-swatch{ width:34px; height:34px; border-radius:50%; flex-shrink:0; box-shadow:0 0 8px -1px rgba(0,0,0,0.6); }
+  .skin-info{ flex:1; min-width:0; }
+  .skin-name{ font-size:12px; font-weight:800; letter-spacing:0.5px; }
+  .skin-tier{ font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; }
+  .skin-stats{ font-size:10px; color:var(--text-dim); margin-top:2px; }
+  .skin-stats b{ color:var(--gold); }
+  .skin-action-btn{
+    background:var(--bg-input); border:1px solid var(--border); color:var(--text);
+    font-size:10px; font-weight:700; padding:7px 12px; border-radius:8px; cursor:pointer; flex-shrink:0;
+  }
+  .skin-action-btn:hover{ border-color:var(--gold); color:var(--gold); }
+  .skin-action-btn.equipped-btn{ background:var(--gold); color:#241a03; border-color:transparent; cursor:default; }
+  .skin-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* ---------- Confirm modal ---------- */
+  .confirm-overlay{
+    position:fixed; inset:0; background:rgba(5,6,14,0.75);
+    display:flex; align-items:center; justify-content:center; z-index:90; padding:20px;
+  }
+  .confirm-card{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:14px;
+    padding:22px 24px; max-width:340px; width:100%;
+    display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center;
+  }
+  .confirm-card .confirm-title{ font-size:14px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--gold); }
+  .confirm-card .confirm-body{ font-size:12px; color:var(--text-dim); line-height:1.6; }
+  .confirm-btn-row{ display:flex; gap:10px; }
+  .confirm-btn-row button{ border:none; font-weight:800; letter-spacing:1px; padding:9px 18px; border-radius:8px; font-size:11px; cursor:pointer; text-transform:uppercase; }
+  #confirmYesBtn{ background:var(--green); color:#04231a; }
+  #confirmNoBtn{ background:var(--bg-input); color:var(--text-dim); border:1px solid var(--border) !important; }
+</style>
+</head>
+<body>
+
+<div class="title-screen" id="titleScreen">
+  <div id="accountStep">
+    <h1>Plinko</h1>
+    <div class="tag">Drop &middot; Bounce &middot; Cash out</div>
+    <div style="margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:10px;">
+      <input class="username-input" id="usernameInput" placeholder="Enter a username" maxlength="20">
+      <div class="auth-btns">
+        <button id="signInBtn">Sign in</button>
+        <button id="registerBtn">Register</button>
+      </div>
+      <div class="auth-status" id="authStatus"></div>
+    </div>
+    <div style="color:var(--text-dim); font-size:9px; max-width:320px; margin-top:10px;">
+      No password needed. Registering claims that username with a fresh balance; signing in loads
+      your saved balance, upgrades, and pity progress. Usernames are stored so duplicates can be
+      blocked &mdash; that means other people using this game can see the list of taken usernames.
+    </div>
+  </div>
+
+  <div id="difficultyStep" class="hidden">
+    <h1>Plinko</h1>
+    <div class="welcome-line" id="welcomeLine"></div>
+    <div style="margin-top:10px;">
+      <div class="title-diff-label">Choose difficulty</div>
+      <div class="diff-picker" id="titleDiffPicker" style="margin-top:8px;"></div>
+      <div class="title-diff-desc" id="titleDiffDesc" style="margin-top:10px;"></div>
+    </div>
+    <button class="play-btn" id="playBtn" style="margin-top:16px;">Play</button>
+    <div style="color:var(--text-dim); font-size:9px; max-width:340px; margin-top:10px;">
+      Play-money only, not real currency. 18+. Payout multipliers start low and climb every 10
+      balls. Ball 90 is guaranteed to land the top multiplier and resets the streak &mdash; that's
+      the only way the streak resets, so landing the top multiplier naturally at earlier tiers
+      just pays that tier's value without resetting anything.
+    </div>
+    <div class="account-link" id="switchAccountLink">Switch account</div>
+  </div>
+</div>
+
+<!-- Upgrades page -->
+<div class="overlay-page hidden" id="upgradesPage">
+  <button class="overlay-close" id="upgradesCloseBtn">&times;</button>
+  <div class="overlay-title">Upgrades</div>
+  <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Upgrade Currency: <b id="upgradesCurrencyLabel" style="color:var(--green);">0</b></div>
+
+  <div class="upgrade-block payout">
+    <div class="u-label">Payout Upgrade</div>
+    <div class="u-sub" id="moneyUpgradeInfo"></div>
+    <div class="progress-track"><div class="progress-fill" id="moneyProgressFill" style="width:0%;"></div></div>
+    <button class="upgrade-buy-btn" id="moneyUpgradeBtn">Buy</button>
+  </div>
+
+  <div class="upgrade-block speed">
+    <div class="u-label">Speed Upgrade</div>
+    <div class="u-sub" id="speedUpgradeInfo"></div>
+    <div class="progress-track"><div class="progress-fill" id="speedProgressFill" style="width:0%;"></div></div>
+    <button class="upgrade-buy-btn" id="speedUpgradeBtn">Buy</button>
+  </div>
+
+  <button class="overlay-exit-btn" id="upgradesExitBtn">Exit</button>
+</div>
+
+<!-- Exchange page -->
+<div class="overlay-page hidden" id="exchangePage">
+  <button class="overlay-close" id="exchangeCloseBtn">&times;</button>
+  <div class="overlay-title">Currency Exchange</div>
+  <div class="exchange-block">
+    <div class="reset-hint">Exchange rate: 1,000,000 in-game currency &rarr; 1 Upgrade Currency.</div>
+    <input id="exchangeAmountInput" placeholder="Amount of balance to exchange" inputmode="decimal">
+    <div class="exchange-quick-row">
+      <button id="exHalfBtn">Half balance</button>
+      <button id="exAllBtn">All balance</button>
+    </div>
+    <div class="exchange-preview" id="exchangePreview">You will receive <b>0</b> Upgrade Currency</div>
+    <button class="exchange-btn" id="exchangeConfirmBtn">Exchange</button>
+  </div>
+  <button class="overlay-exit-btn" id="exchangeExitBtn">Exit</button>
+</div>
+
+<!-- Skins page -->
+<div class="overlay-page hidden" id="skinsPage">
+  <button class="overlay-close" id="skinsCloseBtn">&times;</button>
+  <div class="overlay-title">Ball Skins</div>
+  <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Upgrade Currency: <b id="skinsCurrencyLabel" style="color:var(--green);">0</b></div>
+  <div class="skin-list" id="skinList"></div>
+  <button class="overlay-exit-btn" id="skinsExitBtn">Exit</button>
+</div>
+
+<!-- Reset account page -->
+<div class="overlay-page hidden" id="resetPage">
+  <button class="overlay-close" id="resetCloseBtn">&times;</button>
+  <div class="overlay-title">Reset Account</div>
+  <div class="reset-block">
+    <div class="reset-hint">This wipes your balance, upgrades, Upgrade Currency, skins, and pity
+      progress back to a fresh account. This cannot be undone. Type your username exactly to confirm.</div>
+    <input id="resetUsernameInput" placeholder="Type your username">
+    <button class="reset-confirm-btn" id="resetConfirmBtn" disabled>Confirm reset</button>
+    <button class="reset-cancel-btn" id="resetCancelBtn">Cancel</button>
+  </div>
+</div>
+
+<!-- Settings page -->
+<div class="overlay-page hidden" id="settingsPage">
+  <button class="overlay-close" id="settingsCloseBtn">&times;</button>
+  <div class="overlay-title">Settings</div>
+
+  <div class="upgrade-block">
+    <div class="u-label">Theme</div>
+    <div class="diff-picker" id="themePicker">
+      <button data-theme="dark">Dark</button>
+      <button data-theme="light">Light</button>
+    </div>
+  </div>
+
+  <div class="upgrade-block" style="gap:16px;">
+    <div class="u-label">Audio</div>
+    <div class="u-sub" id="audioStatusLine">Tap any button once to enable sound.</div>
+    <div class="volume-row">
+      <div class="volume-row-top"><span>Master Volume</span><span id="masterVolLabel">70%</span></div>
+      <input type="range" id="masterVolSlider" class="vol-slider" min="0" max="100" value="70">
+    </div>
+    <div class="volume-row">
+      <div class="volume-row-top"><span>Music Volume</span><span id="musicVolLabel">50%</span></div>
+      <input type="range" id="musicVolSlider" class="vol-slider vol-music" min="0" max="100" value="50">
+    </div>
+    <div class="volume-row">
+      <div class="volume-row-top"><span>Sound Effects Volume</span><span id="sfxVolLabel">70%</span></div>
+      <input type="range" id="sfxVolSlider" class="vol-slider vol-sfx" min="0" max="100" value="70">
+    </div>
+    <button class="upgrade-buy-btn" id="enableSoundBtn">Enable sound</button>
+  </div>
+
+  <div class="upgrade-block">
+    <div class="u-label">Account</div>
+    <div class="u-sub">Wipes your balance, upgrades, Upgrade Currency, skins, and pity progress back to a fresh start.</div>
+    <div class="danger-link" id="settingsResetLink">Reset account (cannot be undone)</div>
+  </div>
+
+  <div class="upgrade-block">
+    <div class="u-label">Credits</div>
+    <div class="credits-line">
+      <span class="credits-name" style="color:var(--gold);">Zac Junior Wang</span><br>Game idea &amp; creation
+    </div>
+    <div class="credits-line">
+      <span class="credits-name" style="color:var(--ball);">Yeo Tee Heang Brendan</span><br>Ideas &amp; collaboration
+    </div>
+  </div>
+
+  <button class="overlay-exit-btn" id="settingsExitBtn">Exit</button>
+</div>
+
+<!-- Confirm upgrade modal -->
+<div class="confirm-overlay hidden" id="confirmOverlay">
+  <div class="confirm-card">
+    <div class="confirm-title">Confirm Upgrade</div>
+    <div class="confirm-body" id="confirmBody"></div>
+    <div class="confirm-btn-row">
+      <button id="confirmYesBtn">Confirm</button>
+      <button id="confirmNoBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<button class="settings-btn" id="settingsOpenBtn" title="Settings" aria-label="Settings">&#9881;</button>
+
+<div class="app">
+  <h1>Plinko</h1>
+  <div class="sub">Drop &middot; Bounce &middot; Cash out</div>
+
+  <div class="stage">
+    <div class="toast" id="toast"></div>
+    <div class="badge-row">
+      <div class="pity-badge" id="pityBadge"></div>
+      <div class="boost-badge hidden" id="boostBadge"></div>
+    </div>
+    <canvas id="board" width="560" height="560"></canvas>
+    <div class="bucket-strip" id="bucketStrip"></div>
+  </div>
+
+  <div class="panel">
+    <div class="group">
+      <div class="label">Balance</div>
+      <div class="value" id="balance">0.00</div>
+    </div>
+
+    <div class="group">
+      <div class="label">Upgrade Currency</div>
+      <div class="value small" id="upgradeCurrencyDisplay" style="color:var(--green);">0</div>
+    </div>
+
+    <div class="group">
+      <div class="label">Bet amount</div>
+      <div class="bet-box">
+        <button id="betHalfBtn">&minus;</button>
+        <input id="betInput" value="10.00" inputmode="decimal">
+        <button id="betDoubleBtn">+</button>
+      </div>
+      <div class="bet-frac-row">
+        <button id="fracHalf">1/2</button>
+        <button id="fracQuarter">1/4</button>
+        <button id="fracEighth">1/8</button>
+        <button class="allin-btn" id="allInBtn">All in</button>
+      </div>
+      <div class="bet-frac-row">
+        <button class="mult-btn" id="mult2x">2x</button>
+        <button class="mult-btn" id="mult4x">4x</button>
+        <button class="mult-btn" id="mult8x">8x</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="label">Difficulty</div>
+      <div class="diff-picker" id="diffPicker"></div>
+    </div>
+
+    <div class="group">
+      <div class="label">Last win</div>
+      <div class="value" id="lastWin">&mdash;</div>
+    </div>
+  </div>
+
+  <div class="open-btn-row">
+    <button class="open-btn" id="upgradesOpenBtn">Upgrades</button>
+    <button class="open-btn exchange" id="exchangeOpenBtn">Exchange</button>
+    <button class="open-btn skins" id="skinsOpenBtn">Skins</button>
+  </div>
+
+  <button class="drop-btn" id="dropBtn" style="margin-top:14px;">Drop ball</button>
+
+  <footer>
+    Balance is play money only, not real currency. Payouts scale up every 10 balls; ball 90 is
+    guaranteed to land the top multiplier and is the only thing that resets the streak. A
+    10-second no-loss boost kicks in every 20 bets you place that are at least half your balance.
+  </footer>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+
+  const balanceEl = document.getElementById('balance');
+  const upgradeCurrencyDisplay = document.getElementById('upgradeCurrencyDisplay');
+  const lastWinEl = document.getElementById('lastWin');
+  const betInput = document.getElementById('betInput');
+  const dropBtn = document.getElementById('dropBtn');
+  const toastEl = document.getElementById('toast');
+  const pityBadge = document.getElementById('pityBadge');
+  const boostBadge = document.getElementById('boostBadge');
+  const bucketStrip = document.getElementById('bucketStrip');
+  const diffPicker = document.getElementById('diffPicker');
+  const titleScreen = document.getElementById('titleScreen');
+  const accountStep = document.getElementById('accountStep');
+  const difficultyStep = document.getElementById('difficultyStep');
+  const usernameInput = document.getElementById('usernameInput');
+  const signInBtn = document.getElementById('signInBtn');
+  const registerBtn = document.getElementById('registerBtn');
+  const authStatus = document.getElementById('authStatus');
+  const welcomeLine = document.getElementById('welcomeLine');
+  const titleDiffPicker = document.getElementById('titleDiffPicker');
+  const titleDiffDesc = document.getElementById('titleDiffDesc');
+  const playBtn = document.getElementById('playBtn');
+  const switchAccountLink = document.getElementById('switchAccountLink');
+
+  const upgradesPage = document.getElementById('upgradesPage');
+  const upgradesOpenBtn = document.getElementById('upgradesOpenBtn');
+  const upgradesCloseBtn = document.getElementById('upgradesCloseBtn');
+  const upgradesExitBtn = document.getElementById('upgradesExitBtn');
+  const upgradesCurrencyLabel = document.getElementById('upgradesCurrencyLabel');
+  const moneyUpgradeInfo = document.getElementById('moneyUpgradeInfo');
+  const moneyUpgradeBtn = document.getElementById('moneyUpgradeBtn');
+  const moneyProgressFill = document.getElementById('moneyProgressFill');
+  const speedUpgradeInfo = document.getElementById('speedUpgradeInfo');
+  const speedUpgradeBtn = document.getElementById('speedUpgradeBtn');
+  const speedProgressFill = document.getElementById('speedProgressFill');
+
+  const exchangePage = document.getElementById('exchangePage');
+  const exchangeOpenBtn = document.getElementById('exchangeOpenBtn');
+  const exchangeCloseBtn = document.getElementById('exchangeCloseBtn');
+  const exchangeExitBtn = document.getElementById('exchangeExitBtn');
+  const exchangeAmountInput = document.getElementById('exchangeAmountInput');
+  const exchangePreview = document.getElementById('exchangePreview');
+  const exchangeConfirmBtn = document.getElementById('exchangeConfirmBtn');
+  const exHalfBtn = document.getElementById('exHalfBtn');
+  const exAllBtn = document.getElementById('exAllBtn');
+
+  const skinsPage = document.getElementById('skinsPage');
+  const skinsOpenBtn = document.getElementById('skinsOpenBtn');
+  const skinsCloseBtn = document.getElementById('skinsCloseBtn');
+  const skinsExitBtn = document.getElementById('skinsExitBtn');
+  const skinsCurrencyLabel = document.getElementById('skinsCurrencyLabel');
+  const skinList = document.getElementById('skinList');
+
+  const resetPage = document.getElementById('resetPage');
+  const resetCloseBtn = document.getElementById('resetCloseBtn');
+  const resetCancelBtn = document.getElementById('resetCancelBtn');
+  const resetUsernameInput = document.getElementById('resetUsernameInput');
+  const resetConfirmBtn = document.getElementById('resetConfirmBtn');
+
+  const settingsPage = document.getElementById('settingsPage');
+  const settingsOpenBtn = document.getElementById('settingsOpenBtn');
+  const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+  const settingsExitBtn = document.getElementById('settingsExitBtn');
+  const settingsResetLink = document.getElementById('settingsResetLink');
+  const themePicker = document.getElementById('themePicker');
+  const masterVolSlider = document.getElementById('masterVolSlider');
+  const musicVolSlider = document.getElementById('musicVolSlider');
+  const sfxVolSlider = document.getElementById('sfxVolSlider');
+  const masterVolLabel = document.getElementById('masterVolLabel');
+  const musicVolLabel = document.getElementById('musicVolLabel');
+  const sfxVolLabel = document.getElementById('sfxVolLabel');
+  const enableSoundBtn = document.getElementById('enableSoundBtn');
+  const audioStatusLine = document.getElementById('audioStatusLine');
+
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmBody = document.getElementById('confirmBody');
+  const confirmYesBtn = document.getElementById('confirmYesBtn');
+  const confirmNoBtn = document.getElementById('confirmNoBtn');
+
+  let account = null;
+  let currentTheme = 'dark';
+  const CANVAS_THEME = {
+    dark:  { peg: '#4a4f7a', bucketBorder: '#232849' },
+    light: { peg: '#a9aed8', bucketBorder: '#c7cbe8' }
+  };
+  function canvasPalette(){ return CANVAS_THEME[currentTheme] || CANVAS_THEME.dark; }
+
+  // ---------- Sound manager (Web Audio API — click SFX + generated ambient music) ----------
+  const Sound = (function(){
+    let ctx = null;
+    let masterGain, musicGain, sfxGain;
+    let musicTimer = null;
+    let musicStarted = false;
+    let onStatusChange = null;
+    const state = { master: 0.7, music: 0.5, sfx: 0.7 };
+
+    function ensureCtx(){
+      if (ctx) return true;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      try {
+        ctx = new AC();
+      } catch(e){
+        return false;
+      }
+      masterGain = ctx.createGain();
+      musicGain = ctx.createGain();
+      sfxGain = ctx.createGain();
+      masterGain.gain.value = state.master;
+      musicGain.gain.value = state.music;
+      sfxGain.gain.value = state.sfx;
+      musicGain.connect(masterGain);
+      sfxGain.connect(masterGain);
+      masterGain.connect(ctx.destination);
+      return true;
+    }
+
+    function setVolumes(master, music, sfx){
+      state.master = master; state.music = music; state.sfx = sfx;
+      if (!ctx) return;
+      masterGain.gain.setTargetAtTime(master, ctx.currentTime, 0.01);
+      musicGain.gain.setTargetAtTime(music, ctx.currentTime, 0.01);
+      sfxGain.gain.setTargetAtTime(sfx, ctx.currentTime, 0.01);
+    }
+
+    function playClick(){
+      if (!ensureCtx() || ctx.state !== 'running') return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(620, t);
+      osc.frequency.exponentialRampToValueAtTime(340, t + 0.08);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.25, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+      osc.connect(g);
+      g.connect(sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.12);
+    }
+
+    // Gentle looping ambient arpeggio — fully synthesized, no external files needed.
+    const scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25]; // C major-ish
+    let noteIdx = 0;
+    function playMusicNote(){
+      if (!ctx || ctx.state !== 'running') return;
+      const t = ctx.currentTime;
+      const freq = scale[noteIdx % scale.length] / 2;
+      noteIdx = (noteIdx + 1) % (scale.length * 2);
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.18, t + 0.4);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      osc.connect(g);
+      g.connect(musicGain);
+      osc.start(t);
+      osc.stop(t + 1.7);
+    }
+
+    function startMusic(){
+      if (!ensureCtx() || musicStarted) return;
+      musicStarted = true;
+      playMusicNote();
+      musicTimer = setInterval(playMusicNote, 900);
+    }
+
+    // Try everything that could be blocking playback: create the context inside
+    // the gesture, explicitly resume it, and (for iOS/Safari) fire one silent
+    // buffer through the graph — all synchronously inside the click/touch handler.
+    function unlock(){
+      if (!ensureCtx()) { report('unsupported'); return; }
+      const finish = ()=>{
+        if (ctx.state === 'running'){
+          startMusic();
+          report('running');
+        } else {
+          report('blocked');
+        }
+      };
+      if (ctx.state !== 'running'){
+        ctx.resume().then(finish).catch(()=> report('blocked'));
+      } else {
+        finish();
+      }
+      // Silent buffer kick — helps unlock audio on some mobile browsers.
+      try {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch(e){ /* ignore */ }
+    }
+
+    function report(status){ if (onStatusChange) onStatusChange(status); }
+
+    return {
+      unlock, playClick, setVolumes,
+      get state(){ return state; },
+      get isRunning(){ return !!ctx && ctx.state === 'running'; },
+      onStatus(fn){ onStatusChange = fn; }
+    };
+  })();
+
+  // Any button click/tap anywhere in the game plays a soft click SFX, and the
+  // very first interaction unlocks audio + starts the background music
+  // (required by browser autoplay policies — must happen inside a real
+  // user gesture, so we hook every relevant gesture type, not just 'click').
+  function handleGestureForAudio(e){
+    Sound.unlock();
+    if (e.target && e.target.closest && e.target.closest('button')) Sound.playClick();
+  }
+  ['pointerdown','click','keydown','touchstart'].forEach(evt=>{
+    document.addEventListener(evt, handleGestureForAudio, true);
+  });
+
+  Sound.onStatus((status)=>{
+    if (!audioStatusLine) return;
+    if (status === 'running') audioStatusLine.textContent = 'Sound is enabled.';
+    else if (status === 'unsupported') audioStatusLine.textContent = 'This browser does not support Web Audio.';
+    else audioStatusLine.textContent = 'Sound is blocked by the browser — tap "Enable sound" below.';
+  });
+
+  enableSoundBtn.addEventListener('click', ()=>{ Sound.unlock(); });
+
+  function applyVolumesToUI(){
+    masterVolSlider.value = Math.round(Sound.state.master * 100);
+    musicVolSlider.value = Math.round(Sound.state.music * 100);
+    sfxVolSlider.value = Math.round(Sound.state.sfx * 100);
+    masterVolLabel.textContent = masterVolSlider.value + '%';
+    musicVolLabel.textContent = musicVolSlider.value + '%';
+    sfxVolLabel.textContent = sfxVolSlider.value + '%';
+    audioStatusLine.textContent = Sound.isRunning ? 'Sound is enabled.' : 'Tap any button once to enable sound.';
+  }
+
+  function onVolumeSliderChange(){
+    const master = masterVolSlider.value / 100;
+    const music = musicVolSlider.value / 100;
+    const sfx = sfxVolSlider.value / 100;
+    Sound.setVolumes(master, music, sfx);
+    masterVolLabel.textContent = masterVolSlider.value + '%';
+    musicVolLabel.textContent = musicVolSlider.value + '%';
+    sfxVolLabel.textContent = sfxVolSlider.value + '%';
+    if (account){
+      account.settings = Object.assign({}, account.settings, { master, music, sfx });
+      saveAccount();
+    }
+  }
+  [masterVolSlider, musicVolSlider, sfxVolSlider].forEach(s=>{
+    s.addEventListener('input', onVolumeSliderChange);
+  });
+
+  settingsOpenBtn.addEventListener('click', ()=>{
+    applyVolumesToUI();
+    settingsPage.classList.remove('hidden');
+  });
+  function closeSettingsPage(){ settingsPage.classList.add('hidden'); }
+  settingsCloseBtn.addEventListener('click', closeSettingsPage);
+  settingsExitBtn.addEventListener('click', closeSettingsPage);
+  settingsResetLink.addEventListener('click', ()=>{
+    closeSettingsPage();
+    openResetPage();
+  });
+
+  // ---------- Theme system (dark / light) ----------
+  function applyTheme(theme){
+    currentTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    [...themePicker.children].forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+    });
+  }
+  themePicker.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    applyTheme(btn.dataset.theme);
+    if (account){
+      account.settings = Object.assign({}, account.settings, { theme: currentTheme });
+      saveAccount();
+    }
+  });
+  applyTheme('dark');
+
+  // ---------- Difficulty tiers ----------
+  const DIFFICULTIES = {
+    easy:    { label: 'Easy',    rows: 6,  seed: [2.2, 1.3, 1, 0.8, 0.5] },
+    medium:  { label: 'Medium',  rows: 9,  seed: [9, 3.5, 1.8, 1, 0.6, 0.25] },
+    hard:    { label: 'Hard',    rows: 12, seed: [32, 10, 4, 1.8, 0.7, 0.15] },
+    extreme: { label: 'Extreme', rows: 15, seed: [95, 22, 8, 2.5, 0.7, 0.03] }
+  };
+  const DIFF_DESC = {
+    easy: 'Fewer pegs, gentle bounces, small but steady payouts.',
+    medium: 'A balanced board with moderate risk and reward.',
+    hard: 'Dense pegs, wild bounces, big multipliers at the edges.',
+    extreme: 'Maximum pegs and chaos. Huge jackpots, huge risk.'
+  };
+  let currentDifficulty = 'medium';
+
+  const PITY_THRESHOLD = 90;
+  const PITY_TIERS = 9;
+
+  const BOOST_QUALIFY_COUNT = 20;
+  const BOOST_DURATION_MS = 10000;
+
+  // ---------- Upgrade system: 80 levels, shared cost table, paid in Upgrade Currency ----------
+  const MAX_UPGRADE_LEVEL = 80;
+  const MAX_PAYOUT_MULT = 100; // 100x at level 80
+  const BASE_DROP_COOLDOWN_MS = 400; // 0ms at level 80
+  const EXCHANGE_RATE = 1000000; // 1,000,000 balance -> 1 Upgrade Currency
+
+  function buildUpgradeCostTable(){
+    // First 18 costs exactly as specified
+    const costs = [1,5,10,25,50,75,100,300,400,500,1000,5000,10000,15000,20000,30000,40000,50000];
+    // Continue the pattern: cycle a leading digit 1-5, then add another zero (x10), repeat to level 80
+    let magnitude = 100000; // next order of magnitude after the 10,000s block
+    while (costs.length < MAX_UPGRADE_LEVEL){
+      for (const d of [1,2,3,4,5]){
+        if (costs.length >= MAX_UPGRADE_LEVEL) break;
+        costs.push(d * magnitude);
+      }
+      magnitude *= 10;
+    }
+    // The first 15 levels stay exactly as before (cheap early game).
+    // Every level past that gets a growing cost bump — bigger payouts (100x
+    // instead of 30x) should take noticeably more grinding to reach.
+    for (let i = 15; i < costs.length; i++){
+      const escalation = 1 + (i - 14) * 0.35;
+      costs[i] = Math.round(costs[i] * escalation);
+    }
+    return costs;
+  }
+  const UPGRADE_COSTS = buildUpgradeCostTable(); // index = current level (0-based), cost to reach level+1
+
+  function defaultPityState(){ return { counter: 0 }; }
+  function defaultPity(){
+    const p = {};
+    Object.keys(DIFFICULTIES).forEach(k => p[k] = defaultPityState());
+    return p;
+  }
+
+  function seedForTier(fullSeed, tierIndex){
+    const t = tierIndex / PITY_TIERS;
+    const n = fullSeed.length;
+    // At tier 0 (no pity built up) the board should NOT be flat 1x everywhere.
+    // Build a base spread that goes from 1.5x at the edge (index 0) down to
+    // 0.5x toward the middle (last index), with 1x roughly in between, then
+    // interpolate from that base spread up to the full seed as pity tier rises.
+    return fullSeed.map((v, i) => {
+      const base = n > 1 ? 1.5 - (i / (n - 1)) * 1.0 : 1.0;
+      return base + (v - base) * t;
+    });
+  }
+  function tierForCounter(counter){
+    const step = PITY_THRESHOLD / PITY_TIERS; // 10
+    return Math.min(PITY_TIERS, Math.floor(counter / step));
+  }
+
+  // ---------- Ball skins: 50 skins, 1.0x -> 1.5x, cost scales with rarity ----------
+  const SKIN_COUNT = 50;
+  function tierNameFor(i){
+    if (i === 0) return 'Basic';
+    if (i === SKIN_COUNT - 1) return 'Mythic';
+    if (i < 10) return 'Common';
+    if (i < 20) return 'Uncommon';
+    if (i < 30) return 'Rare';
+    if (i < 40) return 'Epic';
+    return 'Legendary';
+  }
+  const BALL_SKINS = [];
+  for (let i=0;i<SKIN_COUNT;i++){
+    const mult = 1 + 0.5 * (i/(SKIN_COUNT-1)); // 1.0 -> 1.5
+    const cost = i===0 ? 0 : Math.max(25, Math.round(50 * Math.pow(i, 2)));
+    const hue = Math.round((i/(SKIN_COUNT-1)) * 300);
+    BALL_SKINS.push({
+      id: i,
+      name: (i===0 ? 'Basic Ball' : tierNameFor(i) + ' Ball #' + (i+1)),
+      tier: tierNameFor(i),
+      mult: Math.round(mult*1000)/1000,
+      cost,
+      hue
+    });
+  }
+
+  // ---------- Board geometry ----------
+  const TOP_Y = 20;
+  const BUCKET_ZONE_H = 40;
+  const BOTTOM_MARGIN = 10;
+  const GAP_ABOVE_BUCKETS = 12;
+  const PEG_RADIUS = 4.5;
+  const BALL_RADIUS = 7;
+  const MARGIN = 24;
+
+  let ROWS = 9;
+  let pegs = [];
+  let bucketCount = 0;
+  let bucketTop = 0, bucketBottom = 0, bucketWidth = 0;
+  let rowSpacing = 0;
+  let multipliers = [];
+  let bucketFlash = [];
+  const balls = [];
+
+  let boostActive = false;
+  let boostEndTime = 0;
+  let dropCooldownUntil = 0;
+
+  function pegsInRow(i){ return 4 + i; }
+
+  function buildSymmetric(n, seed){
+    const half = Math.ceil(n/2);
+    const arr = [];
+    for (let i=0;i<half;i++) arr.push(seed[Math.min(i, seed.length-1)]);
+    const mirrored = arr.slice(0, n-half).reverse();
+    return arr.concat(mirrored);
+  }
+
+  function bucketColor(m){
+    if (m >= 10) return '#ff3d7f';
+    if (m >= 2) return '#ffd166';
+    if (m >= 1) return '#33e5a4';
+    return '#4a4f7a';
+  }
+
+  function recomputeMultipliers(){
+    if (!account) return;
+    const diff = DIFFICULTIES[currentDifficulty];
+    const pState = account.pity[currentDifficulty];
+    const tier = tierForCounter(pState.counter);
+    const seed = seedForTier(diff.seed, tier);
+    multipliers = buildSymmetric(bucketCount, seed).map(v => Math.round(v*100)/100);
+    buildBucketStrip();
+  }
+
+  function rebuildBoard(diffKey){
+    currentDifficulty = diffKey;
+    const diff = DIFFICULTIES[diffKey];
+    ROWS = diff.rows;
+
+    bucketTop = H - BUCKET_ZONE_H - BOTTOM_MARGIN;
+    bucketBottom = H - BOTTOM_MARGIN;
+    const pegsAreaBottom = bucketTop - GAP_ABOVE_BUCKETS;
+    rowSpacing = ROWS > 1 ? (pegsAreaBottom - TOP_Y) / (ROWS - 1) : 0;
+
+    pegs = [];
+    for (let i = 0; i < ROWS; i++) {
+      const count = pegsInRow(i);
+      const rowWidth = W - MARGIN * 2;
+      const spacing = rowWidth / (count + 1);
+      const y = TOP_Y + i * rowSpacing;
+      for (let j = 0; j < count; j++) {
+        const x = MARGIN + spacing * (j + 1);
+        pegs.push({ x, y });
+      }
+    }
+
+    const bottomRowCount = pegsInRow(ROWS - 1);
+    bucketCount = bottomRowCount + 1;
+    bucketWidth = (W - MARGIN * 2) / bucketCount;
+
+    bucketFlash = new Array(bucketCount).fill(0);
+    balls.length = 0;
+
+    recomputeMultipliers();
+    syncDiffButtons();
+    updatePityBadge();
+  }
+
+  function topBucketIndices(){ return [0, bucketCount - 1]; }
+
+  function buildBucketStrip(){
+    bucketStrip.style.width = (W - MARGIN*2) + 'px';
+    bucketStrip.style.marginLeft = MARGIN + 'px';
+    bucketStrip.innerHTML = '';
+    for (let i=0;i<bucketCount;i++){
+      const cell = document.createElement('div');
+      cell.className = 'bucket-cell';
+      const mult = document.createElement('div');
+      mult.className = 'mult';
+      const v = multipliers[i];
+      mult.textContent = (v < 10 ? v.toFixed(1) : Math.round(v)) + 'x';
+      mult.style.color = bucketColor(v);
+      cell.appendChild(mult);
+      bucketStrip.appendChild(cell);
+    }
+  }
+
+  function syncDiffButtons(){
+    [diffPicker, titleDiffPicker].forEach(picker=>{
+      [...picker.children].forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.key === currentDifficulty);
+      });
+    });
+    titleDiffDesc.textContent = DIFF_DESC[currentDifficulty];
+  }
+
+  function updatePityBadge(){
+    if (!account) return;
+    const p = account.pity[currentDifficulty];
+    const remaining = Math.max(0, PITY_THRESHOLD - p.counter);
+    const tier = tierForCounter(p.counter);
+    if (remaining === 0){
+      pityBadge.textContent = `Tier 9/9 — this ball is guaranteed to hit the top multiplier`;
+    } else {
+      pityBadge.textContent = `Pity tier ${tier}/9 — ${remaining} ball${remaining===1?'':'s'} to guaranteed top`;
+    }
+  }
+
+  function updateBoostBadge(){
+    if (boostActive){
+      const secs = Math.max(0, Math.ceil((boostEndTime - Date.now())/1000));
+      boostBadge.textContent = `BOOST — no losses (${secs}s)`;
+      boostBadge.classList.remove('hidden');
+      canvas.classList.add('boost');
+    } else {
+      boostBadge.classList.add('hidden');
+      canvas.classList.remove('boost');
+    }
+  }
+
+  // ---------- Physics ----------
+  const GRAVITY = 0.32;
+  const DAMPING = 0.72;
+  const MAX_VX = 6;
+
+  function spawnBall(bet, forcePity, pityTargetIdx){
+    balls.push({
+      x: W/2 + (Math.random()*10-5), y: 10,
+      vx: (Math.random()-0.5)*1.2, vy: 0,
+      bet, settled:false, trail:[],
+      forcePity: !!forcePity, pityTargetIdx: pityTargetIdx
+    });
+  }
+
+  function stepBall(b){
+    if (b.settled) return;
+    b.vy += GRAVITY;
+    b.x += b.vx;
+    b.y += b.vy;
+
+    if (b.x < MARGIN + BALL_RADIUS){ b.x = MARGIN + BALL_RADIUS; b.vx *= -0.5; }
+    if (b.x > W - MARGIN - BALL_RADIUS){ b.x = W - MARGIN - BALL_RADIUS; b.vx *= -0.5; }
+
+    for (const p of pegs){
+      const dx = b.x - p.x, dy = b.y - p.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const minDist = PEG_RADIUS + BALL_RADIUS;
+      if (dist < minDist && dist > 0.001){
+        const nx = dx/dist, ny = dy/dist;
+        const overlap = minDist - dist;
+        b.x += nx * overlap;
+        b.y += ny * overlap;
+        const dot = b.vx*nx + b.vy*ny;
+        b.vx = (b.vx - 2*dot*nx) * DAMPING;
+        b.vy = (b.vy - 2*dot*ny) * DAMPING;
+        b.vx += (Math.random()-0.5)*0.9;
+        // NOTE: peg hit-glow removed intentionally (was causing lag spikes)
+      }
+    }
+
+    if (b.forcePity && b.pityTargetIdx !== undefined){
+      const targetX = MARGIN + bucketWidth * (b.pityTargetIdx + 0.5);
+      b.vx += (targetX - b.x) * 0.02;
+    }
+
+    b.vx = Math.max(-MAX_VX, Math.min(MAX_VX, b.vx));
+
+    b.trail.push({x:b.x,y:b.y});
+    if (b.trail.length > 6) b.trail.shift();
+
+    if (b.y > bucketBottom - BALL_RADIUS && !b.settled){
+      b.settled = true;
+      settleBall(b);
+    }
+  }
+
+  function moneyBonusMultiplier(){
+    const lvl = account.upgrades.moneyLevel;
+    return 1 + (MAX_PAYOUT_MULT - 1) * (lvl / MAX_UPGRADE_LEVEL);
+  }
+
+  function equippedSkin(){
+    const idx = (account && typeof account.selectedSkin === 'number') ? account.selectedSkin : 0;
+    return BALL_SKINS[idx] || BALL_SKINS[0];
+  }
+
+  function settleBall(b){
+    let idx = Math.floor((b.x - MARGIN) / bucketWidth);
+    idx = Math.max(0, Math.min(bucketCount-1, idx));
+
+    const pState = account.pity[currentDifficulty];
+    const tops = topBucketIndices();
+
+    if (b.forcePity){
+      idx = b.pityTargetIdx !== undefined ? b.pityTargetIdx : tops[0];
+    }
+
+    const tier = tierForCounter(pState.counter);
+    const hitTopAtFullTier = tops.includes(idx) && tier === PITY_TIERS;
+    if (hitTopAtFullTier){
+      pState.counter = 0; // the ONLY way the streak resets: tier 9/9 + top multiplier
+    }
+
+    let mult = multipliers[idx];
+
+    if (boostActive && Date.now() < boostEndTime){
+      mult = Math.max(mult, 1);
+    } else if (boostActive){
+      boostActive = false;
+    }
+
+    // When a ball lands on a multiplier of 1x or below, that's a loss (or break-even) —
+    // income multiplier upgrades (Payout Upgrade + ball skin bonus) must NOT apply here,
+    // otherwise a high payout upgrade could turn a losing bucket into a profit.
+    // e.g. $100 bet landing on 0.8x should always return exactly $80, no matter what
+    // upgrades or skins are equipped.
+    let win;
+    if (mult <= 1){
+      win = b.bet * mult;
+    } else {
+      const skinMult = equippedSkin().mult;
+      win = b.bet * mult * moneyBonusMultiplier() * skinMult;
+    }
+    account.balance += win;
+    updateBalance();
+    lastWinEl.textContent = win.toFixed(2);
+    lastWinEl.style.color = mult >= 1 ? 'var(--green)' : 'var(--red)';
+    showToast(`${mult.toFixed(2)}x  →  +${win.toFixed(2)}${b.forcePity ? '  (PITY!)' : ''}`, mult>=1);
+    b.flashIdx = idx;
+
+    recomputeMultipliers();
+    updatePityBadge();
+    saveAccount();
+  }
+
+  function showToast(text, positive){
+    toastEl.textContent = text;
+    toastEl.style.background = positive ? 'rgba(51,229,164,0.15)' : 'rgba(255,92,122,0.15)';
+    toastEl.style.color = positive ? 'var(--green)' : 'var(--red)';
+    toastEl.style.boxShadow = positive ? 'inset 0 0 0 1px #33e5a466' : 'inset 0 0 0 1px #ff5c7a66';
+    toastEl.style.opacity = '1';
+    toastEl.style.top = '8px';
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>{ toastEl.style.opacity='0'; toastEl.style.top='-6px'; }, 1200);
+  }
+
+  // ---------- Drawing ----------
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // pegs: static, no glow / no per-hit state (removes the lag-causing light-up effect)
+    ctx.fillStyle = canvasPalette().peg;
+    for (const p of pegs){
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, PEG_RADIUS, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    for (let i=0;i<bucketCount;i++){
+      const x0 = MARGIN + i*bucketWidth;
+      const flash = bucketFlash[i] > 0;
+      ctx.fillStyle = flash ? '#ffffff33' : bucketColor(multipliers[i]) + '33';
+      ctx.fillRect(x0+1, bucketTop, bucketWidth-2, bucketBottom-bucketTop);
+      if (bucketFlash[i] > 0) bucketFlash[i]--;
+    }
+    ctx.strokeStyle = canvasPalette().bucketBorder;
+    ctx.lineWidth = 1;
+    for (let i=0;i<=bucketCount;i++){
+      const x = MARGIN + i*bucketWidth;
+      ctx.beginPath();
+      ctx.moveTo(x, bucketTop);
+      ctx.lineTo(x, bucketBottom);
+      ctx.stroke();
+    }
+
+    const skin = equippedSkin();
+    for (const b of balls){
+      for (let t=0;t<b.trail.length;t++){
+        const pt = b.trail[t];
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, BALL_RADIUS * (t/b.trail.length) * 0.7, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(0,229,255,${0.05 + 0.05*t})`;
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, BALL_RADIUS, 0, Math.PI*2);
+      const grad = ctx.createRadialGradient(b.x-2,b.y-2,1,b.x,b.y,BALL_RADIUS);
+      if (skin.id === 0){
+        grad.addColorStop(0,'#bdfcff');
+        grad.addColorStop(1,'#00b8cc');
+      } else {
+        grad.addColorStop(0, `hsl(${skin.hue}, 90%, 85%)`);
+        grad.addColorStop(1, `hsl(${skin.hue}, 80%, 45%)`);
+      }
+      ctx.fillStyle = grad;
+      ctx.shadowColor = b.forcePity ? '#ffd166' : '#00e5ff';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  function loop(){
+    for (const b of balls) stepBall(b);
+    for (let i=balls.length-1;i>=0;i--){
+      if (balls[i].settled){
+        if (balls[i].flashIdx !== undefined) bucketFlash[balls[i].flashIdx] = 20;
+        balls.splice(i,1);
+      }
+    }
+    if (boostActive && Date.now() >= boostEndTime){ boostActive = false; }
+    updateBoostBadge();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Balance / bet UI ----------
+  function updateBalance(){ if (account) balanceEl.textContent = account.balance.toFixed(2); }
+  function updateUpgradeCurrencyDisplay(){
+    if (!account) return;
+    upgradeCurrencyDisplay.textContent = formatBig(account.upgradeCurrency);
+    upgradesCurrencyLabel.textContent = formatBig(account.upgradeCurrency);
+    skinsCurrencyLabel.textContent = formatBig(account.upgradeCurrency);
+  }
+
+  function getBet(){
+    let v = parseFloat(betInput.value);
+    if (isNaN(v) || v <= 0) v = 1;
+    return v;
+  }
+  betInput.addEventListener('change', ()=>{ betInput.value = getBet().toFixed(2); });
+  document.getElementById('betHalfBtn').addEventListener('click', ()=>{
+    betInput.value = Math.max(0.1, getBet()/2).toFixed(2);
+  });
+  document.getElementById('betDoubleBtn').addEventListener('click', ()=>{
+    betInput.value = (getBet()*2).toFixed(2);
+  });
+
+  function setBetFraction(frac){
+    if (!account || account.balance <= 0){ showToast('No balance to bet', false); return; }
+    const v = Math.max(0.01, Math.floor(account.balance*frac*100)/100);
+    betInput.value = v.toFixed(2);
+  }
+  document.getElementById('fracHalf').addEventListener('click', ()=> setBetFraction(0.5));
+  document.getElementById('fracQuarter').addEventListener('click', ()=> setBetFraction(0.25));
+  document.getElementById('fracEighth').addEventListener('click', ()=> setBetFraction(0.125));
+  document.getElementById('allInBtn').addEventListener('click', ()=>{
+    if (!account || account.balance <= 0){ showToast('No balance left to bet', false); return; }
+    betInput.value = (Math.floor(account.balance*100)/100).toFixed(2);
+    showToast('All in — full balance staked', false);
+  });
+
+  function multiplyBet(factor){
+    betInput.value = (getBet()*factor).toFixed(2);
+  }
+  document.getElementById('mult2x').addEventListener('click', ()=> multiplyBet(2));
+  document.getElementById('mult4x').addEventListener('click', ()=> multiplyBet(4));
+  document.getElementById('mult8x').addEventListener('click', ()=> multiplyBet(8));
+
+  function buildDiffPicker(container, onPick){
+    container.innerHTML = '';
+    Object.keys(DIFFICULTIES).forEach(key=>{
+      const btn = document.createElement('button');
+      btn.textContent = DIFFICULTIES[key].label;
+      btn.dataset.key = key;
+      btn.addEventListener('click', ()=> onPick(key));
+      container.appendChild(btn);
+    });
+  }
+  buildDiffPicker(diffPicker, (key)=>{ rebuildBoard(key); });
+  buildDiffPicker(titleDiffPicker, (key)=>{ currentDifficulty = key; syncDiffButtons(); });
+
+  // ---------- Number formatting (handles huge Upgrade Currency costs) ----------
+  function formatBig(n){
+    const units = [
+      {v:1e21,s:'Sx'},{v:1e18,s:'Qi'},{v:1e15,s:'Qa'},{v:1e12,s:'T'},
+      {v:1e9,s:'B'},{v:1e6,s:'M'},{v:1e3,s:'K'}
+    ];
+    for (const u of units){
+      if (n >= u.v) return (n/u.v).toFixed(n % u.v === 0 ? 0 : 2) + u.s;
+    }
+    return n.toFixed(0);
+  }
+
+  // ---------- Upgrades ----------
+  function resetBalanceForLevel(newLevel){
+    return 1000 * (newLevel + 1); // balance reset is proportionate to the new upgrade level
+  }
+
+  function refreshUpgradeUI(){
+    if (!account) return;
+    const mLvl = account.upgrades.moneyLevel;
+    const sLvl = account.upgrades.speedLevel;
+    const mBonus = moneyBonusMultiplier().toFixed(2);
+    const sCooldown = Math.round(BASE_DROP_COOLDOWN_MS * (1 - sLvl/MAX_UPGRADE_LEVEL));
+
+    moneyProgressFill.style.width = (mLvl/MAX_UPGRADE_LEVEL*100) + '%';
+    speedProgressFill.style.width = (sLvl/MAX_UPGRADE_LEVEL*100) + '%';
+
+    if (mLvl >= MAX_UPGRADE_LEVEL){
+      moneyUpgradeInfo.textContent = `MAX — Lv 80/80 — x${mBonus} payouts`;
+      moneyUpgradeBtn.textContent = 'Maxed';
+      moneyUpgradeBtn.disabled = true;
+    } else {
+      moneyUpgradeInfo.textContent = `Lv ${mLvl}/80 — x${mBonus} payouts`;
+      moneyUpgradeBtn.textContent = `Buy: ${formatBig(UPGRADE_COSTS[mLvl])} Upgrade Currency`;
+      moneyUpgradeBtn.disabled = false;
+    }
+
+    if (sLvl >= MAX_UPGRADE_LEVEL){
+      speedUpgradeInfo.textContent = `MAX — Lv 80/80 — instant (0ms) drops`;
+      speedUpgradeBtn.textContent = 'Maxed';
+      speedUpgradeBtn.disabled = true;
+    } else {
+      speedUpgradeInfo.textContent = `Lv ${sLvl}/80 — ${sCooldown}ms cooldown`;
+      speedUpgradeBtn.textContent = `Buy: ${formatBig(UPGRADE_COSTS[sLvl])} Upgrade Currency`;
+      speedUpgradeBtn.disabled = false;
+    }
+    updateUpgradeCurrencyDisplay();
+  }
+
+  let pendingUpgradeType = null;
+
+  function openUpgradeConfirm(type){
+    if (!account) return;
+    const lvl = type === 'money' ? account.upgrades.moneyLevel : account.upgrades.speedLevel;
+    if (lvl >= MAX_UPGRADE_LEVEL) return;
+    const cost = UPGRADE_COSTS[lvl];
+    if (account.upgradeCurrency < cost){
+      showToast(`Need ${formatBig(cost)} Upgrade Currency`, false);
+      return;
+    }
+    pendingUpgradeType = type;
+    const newLevel = lvl + 1;
+    const newBalance = resetBalanceForLevel(newLevel);
+    const label = type === 'money' ? 'Payout' : 'Speed';
+    confirmBody.innerHTML =
+      `Buying this <b>${label}</b> upgrade (Lv ${lvl} &rarr; ${newLevel}) costs <b>${formatBig(cost)}</b> Upgrade Currency.<br><br>` +
+      `You will lose <b>ALL</b> remaining Upgrade Currency (currently ${formatBig(account.upgradeCurrency)}).<br><br>` +
+      `Your balance will reset to <b>${newBalance.toFixed(2)}</b>.`;
+    confirmOverlay.classList.remove('hidden');
+  }
+
+  confirmYesBtn.addEventListener('click', async ()=>{
+    if (!account || !pendingUpgradeType) { confirmOverlay.classList.add('hidden'); return; }
+    const type = pendingUpgradeType;
+    const lvl = type === 'money' ? account.upgrades.moneyLevel : account.upgrades.speedLevel;
+    const cost = UPGRADE_COSTS[lvl];
+    if (lvl >= MAX_UPGRADE_LEVEL || account.upgradeCurrency < cost){
+      confirmOverlay.classList.add('hidden');
+      pendingUpgradeType = null;
+      return;
+    }
+    if (type === 'money') account.upgrades.moneyLevel += 1;
+    else account.upgrades.speedLevel += 1;
+    const newLevel = type === 'money' ? account.upgrades.moneyLevel : account.upgrades.speedLevel;
+
+    account.balance = resetBalanceForLevel(newLevel);
+    account.upgradeCurrency = 0; // lose all Upgrade Currency on any upgrade purchase
+
+    updateBalance();
+    updateUpgradeCurrencyDisplay();
+    refreshUpgradeUI();
+    confirmOverlay.classList.add('hidden');
+    pendingUpgradeType = null;
+    showToast(`${type === 'money' ? 'Payout' : 'Speed'} upgrade bought! Lv ${newLevel}/80.`, true);
+    await saveAccount();
+  });
+
+  confirmNoBtn.addEventListener('click', ()=>{
+    confirmOverlay.classList.add('hidden');
+    pendingUpgradeType = null;
+  });
+
+  moneyUpgradeBtn.addEventListener('click', ()=> openUpgradeConfirm('money'));
+  speedUpgradeBtn.addEventListener('click', ()=> openUpgradeConfirm('speed'));
+
+  upgradesOpenBtn.addEventListener('click', ()=>{
+    refreshUpgradeUI();
+    upgradesPage.classList.remove('hidden');
+  });
+  function closeUpgradesPage(){ upgradesPage.classList.add('hidden'); }
+  upgradesCloseBtn.addEventListener('click', closeUpgradesPage);
+  upgradesExitBtn.addEventListener('click', closeUpgradesPage);
+
+  function dropCooldownMs(){
+    const lvl = account.upgrades.speedLevel;
+    return BASE_DROP_COOLDOWN_MS * (1 - lvl/MAX_UPGRADE_LEVEL);
+  }
+
+  // ---------- Exchange page ----------
+  function updateExchangePreview(){
+    const raw = parseFloat(exchangeAmountInput.value);
+    const amount = isNaN(raw) || raw <= 0 ? 0 : raw;
+    const gained = Math.floor(amount / EXCHANGE_RATE);
+    exchangePreview.innerHTML = `You will receive <b>${formatBig(gained)}</b> Upgrade Currency (spends ${formatBig(gained*EXCHANGE_RATE)} balance)`;
+  }
+  exchangeAmountInput.addEventListener('input', updateExchangePreview);
+
+  exHalfBtn.addEventListener('click', ()=>{
+    if (!account) return;
+    exchangeAmountInput.value = (account.balance/2).toFixed(0);
+    updateExchangePreview();
+  });
+  exAllBtn.addEventListener('click', ()=>{
+    if (!account) return;
+    exchangeAmountInput.value = Math.floor(account.balance).toFixed(0);
+    updateExchangePreview();
+  });
+
+  exchangeConfirmBtn.addEventListener('click', async ()=>{
+    if (!account) return;
+    const raw = parseFloat(exchangeAmountInput.value);
+    const amount = isNaN(raw) ? 0 : Math.floor(raw);
+    const gained = Math.floor(amount / EXCHANGE_RATE);
+    if (gained <= 0){
+      showToast(`Need at least ${formatBig(EXCHANGE_RATE)} balance to exchange`, false);
+      return;
+    }
+    const spend = gained * EXCHANGE_RATE;
+    if (spend > account.balance){
+      showToast('Not enough balance for that exchange', false);
+      return;
+    }
+    account.balance -= spend;
+    account.upgradeCurrency += gained;
+    updateBalance();
+    updateUpgradeCurrencyDisplay();
+    exchangeAmountInput.value = '';
+    updateExchangePreview();
+    showToast(`Exchanged ${formatBig(spend)} balance for ${formatBig(gained)} Upgrade Currency`, true);
+    await saveAccount();
+  });
+
+  exchangeOpenBtn.addEventListener('click', ()=>{
+    updateExchangePreview();
+    updateUpgradeCurrencyDisplay();
+    exchangePage.classList.remove('hidden');
+  });
+  function closeExchangePage(){ exchangePage.classList.add('hidden'); }
+  exchangeCloseBtn.addEventListener('click', closeExchangePage);
+  exchangeExitBtn.addEventListener('click', closeExchangePage);
+
+  // ---------- Skins page ----------
+  function renderSkinsList(){
+    if (!account) return;
+    skinList.innerHTML = '';
+    BALL_SKINS.forEach((skin, i)=>{
+      const owned = account.ownedSkins.includes(i);
+      const equipped = account.selectedSkin === i;
+
+      const item = document.createElement('div');
+      item.className = 'skin-item' + (equipped ? ' equipped' : '');
+
+      const swatch = document.createElement('div');
+      swatch.className = 'skin-swatch';
+      swatch.style.background = i === 0
+        ? 'radial-gradient(circle at 35% 30%, #bdfcff, #00b8cc)'
+        : `radial-gradient(circle at 35% 30%, hsl(${skin.hue},90%,85%), hsl(${skin.hue},80%,45%))`;
+
+      const info = document.createElement('div');
+      info.className = 'skin-info';
+      info.innerHTML = `<div class="skin-name">${skin.name}</div>
+        <div class="skin-tier">${skin.tier}</div>
+        <div class="skin-stats">Payout: <b>${skin.mult.toFixed(3)}x</b>${owned ? '' : ` &middot; Cost: <b>${formatBig(skin.cost)}</b>`}</div>`;
+
+      const btn = document.createElement('button');
+      btn.className = 'skin-action-btn' + (equipped ? ' equipped-btn' : '');
+      if (equipped){
+        btn.textContent = 'Equipped';
+        btn.disabled = true;
+      } else if (owned){
+        btn.textContent = 'Equip';
+        btn.addEventListener('click', async ()=>{
+          account.selectedSkin = i;
+          renderSkinsList();
+          await saveAccount();
+        });
+      } else {
+        btn.textContent = 'Buy';
+        btn.disabled = account.upgradeCurrency < skin.cost;
+        btn.addEventListener('click', async ()=>{
+          if (account.upgradeCurrency < skin.cost){
+            showToast('Not enough Upgrade Currency', false);
+            return;
+          }
+          account.upgradeCurrency -= skin.cost;
+          account.ownedSkins.push(i);
+          account.selectedSkin = i;
+          updateUpgradeCurrencyDisplay();
+          renderSkinsList();
+          showToast(`${skin.name} equipped!`, true);
+          await saveAccount();
+        });
+      }
+
+      item.appendChild(swatch);
+      item.appendChild(info);
+      item.appendChild(btn);
+      skinList.appendChild(item);
+    });
+  }
+
+  skinsOpenBtn.addEventListener('click', ()=>{
+    updateUpgradeCurrencyDisplay();
+    renderSkinsList();
+    skinsPage.classList.remove('hidden');
+  });
+  function closeSkinsPage(){ skinsPage.classList.add('hidden'); }
+  skinsCloseBtn.addEventListener('click', closeSkinsPage);
+  skinsExitBtn.addEventListener('click', closeSkinsPage);
+
+  dropBtn.addEventListener('click', ()=>{
+    if (!account) return;
+    if (Date.now() < dropCooldownUntil) return;
+
+    const bet = getBet();
+    if (bet > account.balance){
+      showToast('Not enough balance for that bet', false);
+      return;
+    }
+
+    const balanceBeforeBet = account.balance;
+
+    const pState = account.pity[currentDifficulty];
+    pState.counter += 1;
+
+    const forced = pState.counter >= PITY_THRESHOLD;
+
+    account.balance -= bet;
+    updateBalance();
+
+    if (balanceBeforeBet > 0 && bet >= balanceBeforeBet / 2){
+      account.boostStreak = (account.boostStreak || 0) + 1;
+      if (account.boostStreak >= BOOST_QUALIFY_COUNT){
+        account.boostStreak = 0;
+        boostActive = true;
+        boostEndTime = Date.now() + BOOST_DURATION_MS;
+        showToast('BOOST ACTIVE — no losses for 10 seconds!', true);
+      }
+    }
+
+    let pityTargetIdx;
+    if (forced){
+      const tops = topBucketIndices();
+      pityTargetIdx = tops[Math.floor(Math.random()*tops.length)];
+    }
+    spawnBall(bet, forced, pityTargetIdx);
+    recomputeMultipliers();
+    updatePityBadge();
+    saveAccount();
+
+    const cooldown = dropCooldownMs();
+    if (cooldown > 0){
+      dropCooldownUntil = Date.now() + cooldown;
+      dropBtn.disabled = true;
+      setTimeout(()=>{ dropBtn.disabled = false; }, cooldown);
+    }
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    const anyOverlayOpen = ![upgradesPage, exchangePage, skinsPage, resetPage, settingsPage, confirmOverlay].every(el => el.classList.contains('hidden'));
+    if (e.code === 'Space' && titleScreen.classList.contains('hidden') && !anyOverlayOpen){
+      e.preventDefault();
+      dropBtn.click();
+    }
+  });
+
+  playBtn.addEventListener('click', ()=>{
+    rebuildBoard(currentDifficulty);
+    titleScreen.classList.add('hidden');
+  });
+
+  // ---------- Reset account (own page) ----------
+  function openResetPage(){
+    resetUsernameInput.value = '';
+    resetConfirmBtn.disabled = true;
+    resetPage.classList.remove('hidden');
+  }
+  function closeResetPage(){
+    resetPage.classList.add('hidden');
+  }
+  resetCloseBtn.addEventListener('click', closeResetPage);
+  resetCancelBtn.addEventListener('click', closeResetPage);
+  resetUsernameInput.addEventListener('input', ()=>{
+    resetConfirmBtn.disabled = !(account && resetUsernameInput.value === account.username);
+  });
+  resetConfirmBtn.addEventListener('click', async ()=>{
+    if (!account || resetUsernameInput.value !== account.username) return;
+    account.balance = 1000;
+    account.upgrades = { moneyLevel: 0, speedLevel: 0 };
+    account.pity = defaultPity();
+    account.boostStreak = 0;
+    account.upgradeCurrency = 0;
+    account.ownedSkins = [0];
+    account.selectedSkin = 0;
+    boostActive = false;
+    updateBalance();
+    updateUpgradeCurrencyDisplay();
+    refreshUpgradeUI();
+    recomputeMultipliers();
+    updatePityBadge();
+    closeResetPage();
+    showToast('Account reset to a fresh start', false);
+    await saveAccount();
+  });
+
+  // ---------- Account system ----------
+  function sanitizeUsername(raw){ return (raw || '').trim().slice(0, 20); }
+
+  function setAuthStatus(msg, isError){
+    authStatus.textContent = msg || '';
+    authStatus.style.color = isError ? 'var(--red)' : 'var(--green)';
+  }
+
+  async function saveAccount(){
+    if (!account) return;
+    try {
+      await window.storage.set('plinko_account:' + account.username, JSON.stringify(account), true);
+    } catch (e){
+      console.error('Save failed', e);
+    }
+  }
+
+  function ensureAccountShape(acc){
+    if (!acc.pity) acc.pity = defaultPity();
+    Object.keys(DIFFICULTIES).forEach(k=>{
+      if (!acc.pity[k]) acc.pity[k] = defaultPityState();
+      if (typeof acc.pity[k].counter !== 'number') acc.pity[k].counter = 0;
+    });
+    if (!acc.upgrades) acc.upgrades = { moneyLevel: 0, speedLevel: 0 };
+    if (typeof acc.upgrades.moneyLevel !== 'number') acc.upgrades.moneyLevel = 0;
+    if (typeof acc.upgrades.speedLevel !== 'number') acc.upgrades.speedLevel = 0;
+    if (acc.upgrades.moneyLevel > MAX_UPGRADE_LEVEL) acc.upgrades.moneyLevel = MAX_UPGRADE_LEVEL;
+    if (acc.upgrades.speedLevel > MAX_UPGRADE_LEVEL) acc.upgrades.speedLevel = MAX_UPGRADE_LEVEL;
+    if (typeof acc.boostStreak !== 'number') acc.boostStreak = 0;
+    if (typeof acc.upgradeCurrency !== 'number') acc.upgradeCurrency = 0;
+    if (!Array.isArray(acc.ownedSkins)) acc.ownedSkins = [0];
+    if (!acc.ownedSkins.includes(0)) acc.ownedSkins.push(0);
+    if (typeof acc.selectedSkin !== 'number' || !acc.ownedSkins.includes(acc.selectedSkin)) acc.selectedSkin = 0;
+    if (!acc.settings) acc.settings = { master: 0.7, music: 0.5, sfx: 0.7, theme: 'dark' };
+    if (typeof acc.settings.master !== 'number') acc.settings.master = 0.7;
+    if (typeof acc.settings.music !== 'number') acc.settings.music = 0.5;
+    if (typeof acc.settings.sfx !== 'number') acc.settings.sfx = 0.7;
+    if (acc.settings.theme !== 'light' && acc.settings.theme !== 'dark') acc.settings.theme = 'dark';
+    return acc;
+  }
+
+  function showDifficultyStep(){
+    welcomeLine.textContent = `Signed in as ${account.username} — balance ${account.balance.toFixed(2)}`;
+    accountStep.classList.add('hidden');
+    difficultyStep.classList.remove('hidden');
+    syncDiffButtons();
+    refreshUpgradeUI();
+    updateUpgradeCurrencyDisplay();
+    Sound.setVolumes(account.settings.master, account.settings.music, account.settings.sfx);
+    applyVolumesToUI();
+  }
+
+  registerBtn.addEventListener('click', async ()=>{
+    const username = sanitizeUsername(usernameInput.value);
+    if (!username){ setAuthStatus('Enter a username first', true); return; }
+    setAuthStatus('Checking availability...', false);
+    registerBtn.disabled = true;
+    try {
+      let taken = true;
+      try {
+        await window.storage.get('plinko_account:' + username, true);
+        taken = true;
+      } catch (e){
+        taken = false;
+      }
+      if (taken){
+        setAuthStatus('That username is already taken. Try another or sign in.', true);
+        registerBtn.disabled = false;
+        return;
+      }
+      account = ensureAccountShape({
+        username, balance: 1000, pity: defaultPity(),
+        upgrades: { moneyLevel: 0, speedLevel: 0 }, boostStreak: 0,
+        upgradeCurrency: 0, ownedSkins: [0], selectedSkin: 0, createdAt: Date.now()
+      });
+      await saveAccount();
+      setAuthStatus(`Account "${username}" created!`, false);
+      updateBalance();
+      showDifficultyStep();
+    } catch (e){
+      setAuthStatus('Something went wrong registering. Try again.', true);
+    }
+    registerBtn.disabled = false;
+  });
+
+  signInBtn.addEventListener('click', async ()=>{
+    const username = sanitizeUsername(usernameInput.value);
+    if (!username){ setAuthStatus('Enter a username first', true); return; }
+    setAuthStatus('Looking up account...', false);
+    signInBtn.disabled = true;
+    try {
+      const result = await window.storage.get('plinko_account:' + username, true);
+      if (!result || !result.value){
+        setAuthStatus('No account found with that username. Try registering.', true);
+        signInBtn.disabled = false;
+        return;
+      }
+      account = ensureAccountShape(JSON.parse(result.value));
+      setAuthStatus(`Welcome back, ${username}!`, false);
+      updateBalance();
+      showDifficultyStep();
+    } catch (e){
+      setAuthStatus('No account found with that username. Try registering.', true);
+    }
+    signInBtn.disabled = false;
+  });
+
+  switchAccountLink.addEventListener('click', ()=>{
+    account = null;
+    usernameInput.value = '';
+    setAuthStatus('', false);
+    difficultyStep.classList.add('hidden');
+    accountStep.classList.remove('hidden');
+  });
+
+  rebuildBoard(currentDifficulty);
+  loop();
+})();
+</script>
+</body>
+</html>
